@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: 'magus-helpdesk',
     script: 'src/index.js',
-    cwd: '/var/www/magus-helpdesk/backend',
+    cwd: '/usr/share/nginx/html/magus-helpdesk/backend',
     instances: 'max',
     exec_mode: 'cluster',
     env_production: {
