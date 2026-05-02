@@ -5,14 +5,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketsPage from './pages/TicketsPage';
 import TicketDetallePage from './pages/TicketDetallePage';
-import NuevoTicketPage from './pages/NuevoTicketPage';
-import AgentesPage from './pages/AgentesPage';
-import ClientesPage from './pages/ClientesPage';
-import SLAPage from './pages/SLAPage';
-import ReportesPage from './pages/ReportesPage';
-import KBPage from './pages/KBPage';
-import ConfigPage from './pages/ConfigPage';
-import EncuestaPage from './pages/EncuestaPage';
+import { NuevoTicketPage, AgentesPage, ClientesPage, SLAPage, ReportesPage, KBPage, ConfigPage, EncuestaPage } from './pages/extra-pages.jsx';
 import './styles/global.css';
 
 const PrivateRoute = ({ children, roles }) => {
@@ -24,7 +17,7 @@ const PrivateRoute = ({ children, roles }) => {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/helpdesk">
+    <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/encuesta/:token" element={<EncuestaPage />} />
