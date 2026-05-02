@@ -17,7 +17,7 @@ const PrivateRoute = ({ children, roles }) => {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/helpdesk">
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/encuesta/:token" element={<EncuestaPage />} />

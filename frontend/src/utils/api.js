@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: '/helpdesk/api',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' }
 });
@@ -18,7 +18,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('usuario');
-      window.location.href = '/login';
+      window.location.href = '/helpdesk/login';
     }
     return Promise.reject(err);
   }
