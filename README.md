@@ -258,3 +258,4 @@ crontab -e
 ## SOPORTE
 
 Para soporte técnico en la instalación: soporte@magus-ecommerce.com
+pm2 restart magus-helpdesk

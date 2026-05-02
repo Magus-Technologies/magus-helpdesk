@@ -3,8 +3,8 @@ module.exports = {
     name: 'magus-helpdesk',
     script: 'src/index.js',
     cwd: '/usr/share/nginx/html/magus-helpdesk/backend',
-    instances: 'max',
-    exec_mode: 'cluster',
+    instances: 1,
+    exec_mode: 'fork',
     env_production: {
       NODE_ENV: 'production',
       PORT: 4000
