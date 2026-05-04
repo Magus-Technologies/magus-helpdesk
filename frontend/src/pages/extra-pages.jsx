@@ -4,7 +4,7 @@ import api from '../utils/api';
 import useAuthStore from '../hooks/useAuthStore';
 
 // ============================================================
-// MODAL GENÉRICO
+// MODAL GENÉRICOss
 // ============================================================
 function Modal({ title, onClose, children, width = 520 }) {
   return (
