@@ -15,8 +15,8 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: (parseInt(process.env.MAX_FILE_SIZE_MB)||10)*1024*1024 },
-  fileFilter: (req,file,cb) => cb(null,['.jpg','.jpeg','.png','.gif','.pdf','.doc','.docx','.xls','.xlsx','.txt','.zip'].includes(path.extname(file.originalname).toLowerCase()))
+  limits: { fileSize: (parseInt(process.env.MAX_FILE_SIZE_MB)||15)*1024*1024 },
+  fileFilter: (req,file,cb) => cb(null,['.jpg','.jpeg','.png','.gif','.pdf','.doc','.docx','.xls','.xlsx','.txt','.zip','.mp4','.pptx'].includes(path.extname(file.originalname).toLowerCase()))
 });
 
 // AUTH
@@ -39,7 +39,7 @@ router.patch('/auth/cambiar-password', authMiddleware, async (req,res) => {
 // DASHBOARD
 router.get('/dashboard', authMiddleware, ticketsCtrl.dashboardStats);
 
-// TICKETS — encuesta ANTES de /:id
+// TICKETS — encuesta ANTES de /:id para evitar conflicto
 router.post('/tickets/encuesta', ticketsCtrl.responderEncuesta);
 router.get('/tickets', authMiddleware, ticketsCtrl.listarTickets);
 router.post('/tickets', authMiddleware, ticketsCtrl.crearTicket);
@@ -228,7 +228,7 @@ router.put('/sla/:id', authMiddleware, requireRol('admin'), async(req,res)=>{
   }catch(e){res.status(500).json({error:'Error'});}
 });
 
-// KB
+// KB — con adjuntos de archivos
 router.get('/kb', authMiddleware, async(req,res)=>{
   try{
     const {estado,buscar}=req.query;
@@ -257,6 +257,22 @@ router.post('/kb', authMiddleware, requireRol('admin','supervisor','agente'), as
       [uuidv4(),req.tenantId,titulo.trim(),contenido,resumen||null,categoria_id||null,req.user.id,estado||'borrador',tags||[],slug]);
     res.status(201).json(r.rows[0]);
   }catch(e){res.status(500).json({error:'Error al crear artículo'});}
+});
+// Adjuntos para KB (documentos)
+router.post('/kb/:id/adjuntos', authMiddleware, requireRol('admin','supervisor','agente'), upload.array('archivos',5), async(req,res)=>{
+  try{
+    const adjuntos=[];
+    for(const file of req.files){
+      const r=await query('INSERT INTO adjuntos(id,nombre_original,nombre_almacenado,url,mime_type,tamano_bytes,subido_por) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+        [uuidv4(),file.originalname,file.filename,`/uploads/${file.filename}`,file.mimetype,file.size,req.user.id]);
+      adjuntos.push(r.rows[0]);
+    }
+    // Guardar referencia en el artículo
+    const meta=await query('SELECT metadatos FROM kb_articulos WHERE id=$1',[req.params.id]);
+    const existentes=(meta.rows[0]?.metadatos?.adjuntos)||[];
+    await query('UPDATE kb_articulos SET metadatos=$1 WHERE id=$2',[JSON.stringify({adjuntos:[...existentes,...adjuntos.map(a=>({id:a.id,nombre:a.nombre_original,url:a.url,mime:a.mime_type,tamano:a.tamano_bytes}))]}),req.params.id]);
+    res.json(adjuntos);
+  }catch(e){res.status(500).json({error:'Error al subir adjuntos'});}
 });
 router.put('/kb/:id', authMiddleware, requireRol('admin','supervisor','agente'), async(req,res)=>{
   try{
@@ -294,7 +310,7 @@ router.patch('/notificaciones/:id/leer', authMiddleware, async(req,res)=>{
 router.get('/reportes/general', authMiddleware, requireRol('admin','supervisor'), reportesCtrl.reporteGeneral);
 router.get('/reportes/sla', authMiddleware, requireRol('admin','supervisor'), reportesCtrl.reporteSLA);
 
-// CONFIG TENANT
+// CONFIG TENANT + HORARIO
 router.get('/config', authMiddleware, requireRol('admin'), async(req,res)=>{
   try{res.json((await query('SELECT * FROM tenants WHERE id=$1',[req.tenantId])).rows[0]);}
   catch(e){res.status(500).json({error:'Error'});}
@@ -302,10 +318,32 @@ router.get('/config', authMiddleware, requireRol('admin'), async(req,res)=>{
 router.put('/config', authMiddleware, requireRol('admin'), async(req,res)=>{
   try{
     const {nombre,email_soporte,configuracion}=req.body;
-    const r=await query('UPDATE tenants SET nombre=COALESCE($1,nombre),email_soporte=COALESCE($2,email_soporte),configuracion=COALESCE($3,configuracion) WHERE id=$4 RETURNING *',
+    const r=await query('UPDATE tenants SET nombre=COALESCE($1,nombre),email_soporte=COALESCE($2,email_soporte),configuracion=COALESCE($3::jsonb,configuracion) WHERE id=$4 RETURNING *',
       [nombre,email_soporte,configuracion?JSON.stringify(configuracion):null,req.tenantId]);
     res.json(r.rows[0]);
   }catch(e){res.status(500).json({error:'Error al guardar'});}
+});
+
+// HORARIO DE ATENCIÓN (público - para clientes)
+router.get('/horario', async(req,res)=>{
+  try{
+    // Buscar tenant por dominio o usar el primero
+    const tenantId = process.env.DEFAULT_TENANT_ID;
+    const r=await query('SELECT configuracion FROM tenants WHERE id=$1',[tenantId]);
+    const config=r.rows[0]?.configuracion||{};
+    res.json(config.horario_atencion||{
+      lunes:{activo:true,desde:'08:00',hasta:'18:00'},
+      martes:{activo:true,desde:'08:00',hasta:'18:00'},
+      miercoles:{activo:true,desde:'08:00',hasta:'18:00'},
+      jueves:{activo:true,desde:'08:00',hasta:'18:00'},
+      viernes:{activo:true,desde:'08:00',hasta:'18:00'},
+      sabado:{activo:false,desde:'09:00',hasta:'13:00'},
+      domingo:{activo:false,desde:'',hasta:''},
+      zona_horaria:'America/Lima',
+      mensaje_fuera_horario:'Estamos fuera del horario de atención. Te responderemos el próximo día hábil.',
+      telefono_urgencias:''
+    });
+  }catch(e){res.status(500).json({error:'Error'});}
 });
 
 module.exports = router;
