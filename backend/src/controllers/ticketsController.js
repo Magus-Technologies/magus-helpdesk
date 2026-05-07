@@ -3,12 +3,13 @@ const { query, getClient } = require('../config/database');
 const logger = require('../config/logger');
 const emailService = require('../services/emailService');
 const socketService = require('../services/socketService');
+const waService = require('../services/whatsappService');
 
 // GET /tickets
 const listarTickets = async (req, res) => {
   try {
     const { estado, prioridad, agente_id, empresa_id, categoria_id,
-            page = 1, limit = 20, buscar, orden = 'creado_en', dir = 'DESC' } = req.query;
+            page = 1, limit = 25, buscar, orden = 'creado_en', dir = 'DESC' } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const params = [req.tenantId];
     const condiciones = ['t.tenant_id = $1'];
@@ -18,14 +19,14 @@ const listarTickets = async (req, res) => {
       condiciones.push(`t.cliente_id = $${params.length + 1}`);
       params.push(req.user.id);
     }
-
+    // Técnico filtrado por agente_id explícito
+    if (agente_id) { condiciones.push(`t.agente_id = $${params.length + 1}`); params.push(agente_id); }
     if (estado) { condiciones.push(`t.estado = $${params.length + 1}`); params.push(estado); }
     if (prioridad) { condiciones.push(`t.prioridad = $${params.length + 1}`); params.push(prioridad); }
-    if (agente_id) { condiciones.push(`t.agente_id = $${params.length + 1}`); params.push(agente_id); }
     if (empresa_id) { condiciones.push(`t.empresa_id = $${params.length + 1}`); params.push(empresa_id); }
     if (categoria_id) { condiciones.push(`t.categoria_id = $${params.length + 1}`); params.push(categoria_id); }
     if (buscar) {
-      condiciones.push(`(t.asunto ILIKE $${params.length + 1} OR t.descripcion ILIKE $${params.length + 1})`);
+      condiciones.push(`(t.asunto ILIKE $${params.length + 1} OR CONCAT('TK-',LPAD(t.numero::TEXT,4,'0')) ILIKE $${params.length + 1})`);
       params.push(`%${buscar}%`);
     }
 
@@ -44,6 +45,7 @@ const listarTickets = async (req, res) => {
              THEN TRUE ELSE FALSE END AS sla_vencido,
         u_cli.nombre || ' ' || u_cli.apellido AS cliente_nombre,
         u_cli.email AS cliente_email,
+        u_agt.id AS agente_id,
         u_agt.nombre || ' ' || u_agt.apellido AS agente_nombre,
         e.nombre AS empresa_nombre,
         c.nombre AS categoria_nombre,
@@ -83,7 +85,8 @@ const obtenerTicket = async (req, res) => {
     const result = await query(`
       SELECT t.*,
         CONCAT('TK-', LPAD(t.numero::TEXT, 4, '0')) AS codigo,
-        u_cli.nombre || ' ' || u_cli.apellido AS cliente_nombre, u_cli.email AS cliente_email, u_cli.avatar_url AS cliente_avatar,
+        u_cli.nombre || ' ' || u_cli.apellido AS cliente_nombre,
+        u_cli.email AS cliente_email, u_cli.avatar_url AS cliente_avatar,
         u_agt.nombre || ' ' || u_agt.apellido AS agente_nombre, u_agt.email AS agente_email,
         u_sup.nombre || ' ' || u_sup.apellido AS supervisor_nombre,
         e.nombre AS empresa_nombre,
@@ -103,15 +106,20 @@ const obtenerTicket = async (req, res) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Ticket no encontrado' });
 
-    // Permisos: cliente solo puede ver sus propios tickets
     const ticket = result.rows[0];
+
+    // Permisos: cliente solo puede ver sus propios tickets
     if (req.user.rol === 'cliente' && ticket.cliente_id !== req.user.id) {
       return res.status(403).json({ error: 'Acceso denegado' });
     }
+    // Técnico solo puede ver sus tickets asignados
+    if (req.user.rol === 'agente' && ticket.agente_id && ticket.agente_id !== req.user.id) {
+      return res.status(403).json({ error: 'Este ticket no está asignado a ti' });
+    }
 
-    const [comentarios, historial, adjuntos, tiempos] = await Promise.all([
+    const [comentarios, historial, adjuntos] = await Promise.all([
       query(`
-        SELECT tc.*, u.nombre || ' ' || u.apellido AS autor_nombre, u.rol AS autor_rol, u.avatar_url AS autor_avatar
+        SELECT tc.*, u.nombre || ' ' || u.apellido AS autor_nombre, u.rol AS autor_rol, u.id AS autor_id
         FROM ticket_comentarios tc
         LEFT JOIN usuarios u ON tc.autor_id = u.id
         WHERE tc.ticket_id = $1
@@ -124,16 +132,14 @@ const obtenerTicket = async (req, res) => {
         WHERE th.ticket_id = $1
         ORDER BY th.creado_en DESC LIMIT 50
       `, [id]),
-      query('SELECT * FROM adjuntos WHERE ticket_id = $1 ORDER BY creado_en', [id]),
-      query('SELECT * FROM tiempo_trabajado WHERE ticket_id = $1 ORDER BY inicio DESC', [id])
+      query('SELECT * FROM adjuntos WHERE ticket_id = $1 ORDER BY creado_en', [id])
     ]);
 
     res.json({
       ...ticket,
       comentarios: comentarios.rows.filter(c => req.user.rol !== 'cliente' || c.tipo !== 'interno'),
       historial: historial.rows,
-      adjuntos: adjuntos.rows,
-      tiempos: tiempos.rows
+      adjuntos: adjuntos.rows
     });
   } catch (err) {
     logger.error('Error obtenerTicket:', err);
@@ -157,22 +163,22 @@ const crearTicket = async (req, res) => {
 
     const result = await client.query(`
       INSERT INTO tickets (id, tenant_id, asunto, descripcion, categoria_id, subcategoria_id,
-                          prioridad, cliente_id, empresa_id, agente_id, canal_origen, tags)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                          prioridad, cliente_id, empresa_id, agente_id, canal_origen, tags,
+                          estado)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, $13)
       RETURNING *, CONCAT('TK-', LPAD(numero::TEXT, 4, '0')) AS codigo
     `, [uuidv4(), req.tenantId, asunto, descripcion, categoria_id || null,
         subcategoria_id || null, prioridad, clienteId, empresa_id || null,
-        agente_id || null, canal_origen, tags || []]);
+        agente_id || null, canal_origen, tags || [],
+        agente_id ? 'asignado' : 'nuevo']);
 
     const ticket = result.rows[0];
 
-    // Historial creación
     await client.query(`
       INSERT INTO ticket_historial (id, ticket_id, usuario_id, accion, valor_nuevo)
       VALUES ($1,$2,$3,'ticket_creado',$4)
     `, [uuidv4(), ticket.id, req.user.id, ticket.estado]);
 
-    // Encuesta de satisfacción preparada
     await client.query(`
       INSERT INTO encuestas_satisfaccion (id, ticket_id, cliente_id, token)
       VALUES ($1,$2,$3,$4)
@@ -180,11 +186,12 @@ const crearTicket = async (req, res) => {
 
     await client.query('COMMIT');
 
-    // Notificaciones asíncronas
-    emailService.notificarTicketCreado(ticket).catch(e => logger.error('Email error:', e));
+    // Notificaciones asíncronas (email + WhatsApp)
+    emailService.notificarTicketCreado(ticket).catch(e => logger.error('Email nuevo ticket:', e.message));
+    waService.waTicketCreado(ticket.id).catch(e => logger.error('WA nuevo ticket:', e.message));
     socketService.emitirNuevoTicket(ticket);
 
-    logger.info(`Ticket creado: ${ticket.codigo} por ${req.user.email}`);
+    logger.info(`Ticket creado: ${ticket.codigo}`);
     res.status(201).json(ticket);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -201,6 +208,13 @@ const actualizarTicket = async (req, res) => {
     const { id } = req.params;
     const { estado, prioridad, agente_id, categoria_id, tags } = req.body;
 
+    // Obtener estado actual para comparar
+    const ticketActual = await query('SELECT estado, agente_id FROM tickets WHERE id=$1', [id]);
+    if (!ticketActual.rows.length) return res.status(404).json({ error: 'Ticket no encontrado' });
+
+    const estadoAnterior = ticketActual.rows[0].estado;
+    const agenteAnterior = ticketActual.rows[0].agente_id;
+
     const campos = [];
     const valores = [];
     let idx = 1;
@@ -211,7 +225,6 @@ const actualizarTicket = async (req, res) => {
     if (categoria_id) { campos.push(`categoria_id = $${idx++}`); valores.push(categoria_id); }
     if (tags) { campos.push(`tags = $${idx++}`); valores.push(tags); }
 
-    // Tiempos especiales
     if (estado === 'resuelto') campos.push(`resuelto_en = NOW()`);
     if (estado === 'cerrado') campos.push(`cerrado_en = NOW()`);
 
@@ -225,14 +238,32 @@ const actualizarTicket = async (req, res) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Ticket no encontrado' });
 
-    socketService.emitirTicketActualizado(result.rows[0]);
+    const ticketActualizado = result.rows[0];
+    socketService.emitirTicketActualizado(ticketActualizado);
 
-    // Si se resolvió, programar encuesta
-    if (estado === 'resuelto') {
-      emailService.enviarEncuestaSatisfaccion(result.rows[0]).catch(e => logger.error(e));
+    // ── Notificaciones por cambio de ESTADO ──
+    if (estado && estado !== estadoAnterior) {
+      emailService.notificarCambioEstado(id, estadoAnterior, estado)
+        .catch(e => logger.error('Email cambio estado:', e.message));
+      waService.waCambioEstado(id, estadoAnterior, estado)
+        .catch(e => logger.error('WA cambio estado:', e.message));
     }
 
-    res.json(result.rows[0]);
+    // ── Notificaciones por REASIGNACIÓN de técnico ──
+    if (agente_id !== undefined && agente_id !== agenteAnterior && agente_id) {
+      emailService.notificarReasignacion(id, agente_id)
+        .catch(e => logger.error('Email reasignacion:', e.message));
+      waService.waReasignacion(id)
+        .catch(e => logger.error('WA reasignacion:', e.message));
+    }
+
+    // ── Encuesta al resolver ──
+    if (estado === 'resuelto') {
+      emailService.enviarEncuestaSatisfaccion(ticketActualizado)
+        .catch(e => logger.error('Email encuesta:', e.message));
+    }
+
+    res.json(ticketActualizado);
   } catch (err) {
     logger.error('Error actualizarTicket:', err);
     res.status(500).json({ error: 'Error al actualizar ticket' });
@@ -246,28 +277,41 @@ const agregarComentario = async (req, res) => {
     const { contenido, tipo = 'publico' } = req.body;
     if (!contenido) return res.status(400).json({ error: 'Contenido requerido' });
 
-    // Clientes no pueden hacer notas internas
     const tipoFinal = req.user.rol === 'cliente' ? 'publico' : tipo;
 
     const result = await query(`
       INSERT INTO ticket_comentarios (id, ticket_id, autor_id, contenido, tipo)
       VALUES ($1,$2,$3,$4,$5)
-      RETURNING *, (SELECT nombre || ' ' || apellido FROM usuarios WHERE id = $3) AS autor_nombre
+      RETURNING *,
+        (SELECT nombre || ' ' || apellido FROM usuarios WHERE id = $3) AS autor_nombre,
+        (SELECT rol FROM usuarios WHERE id = $3) AS autor_rol
     `, [uuidv4(), id, req.user.id, contenido, tipoFinal]);
 
-    // Actualizar primera respuesta del agente
+    // Marcar primera respuesta del agente
     if (req.user.rol !== 'cliente') {
       await query(`
-        UPDATE tickets SET primera_respuesta_en = COALESCE(primera_respuesta_en, NOW()),
-        estado = CASE WHEN estado = 'nuevo' OR estado = 'asignado' THEN 'en_progreso' ELSE estado END
+        UPDATE tickets SET
+          primera_respuesta_en = COALESCE(primera_respuesta_en, NOW()),
+          estado = CASE WHEN estado IN ('nuevo','asignado') THEN 'en_progreso' ELSE estado END
         WHERE id = $1
       `, [id]);
     }
 
-    socketService.emitirNuevoComentario(id, result.rows[0]);
-    emailService.notificarComentario(id, result.rows[0]).catch(e => logger.error(e));
+    const comentario = result.rows[0];
+    socketService.emitirNuevoComentario(id, comentario);
 
-    res.status(201).json(result.rows[0]);
+    // Notificar solo respuestas públicas
+    if (tipoFinal === 'publico') {
+      emailService.notificarComentario(id, comentario)
+        .catch(e => logger.error('Email comentario:', e.message));
+      // WA solo si fue el agente respondiendo al cliente
+      if (req.user.rol !== 'cliente') {
+        waService.waNuevaRespuesta(id, contenido)
+          .catch(e => logger.error('WA comentario:', e.message));
+      }
+    }
+
+    res.status(201).json(comentario);
   } catch (err) {
     logger.error('Error agregarComentario:', err);
     res.status(500).json({ error: 'Error al agregar comentario' });
@@ -316,8 +360,7 @@ const dashboardStats = async (req, res) => {
         total: parseInt(hoyData.total_hoy),
         pendientes: parseInt(hoyData.pendientes),
         vencidos_sla: parseInt(hoyData.vencidos_sla),
-        pct_sla: hoyData.sla_evaluados > 0
-          ? Math.round(100 * hoyData.sla_cumplidos / hoyData.sla_evaluados) : 0
+        pct_sla: hoyData.sla_evaluados > 0 ? Math.round(100 * hoyData.sla_cumplidos / hoyData.sla_evaluados) : 0
       },
       estados: estadoMap,
       prioridades: prioridades.rows,
@@ -332,7 +375,7 @@ const dashboardStats = async (req, res) => {
   }
 };
 
-// POST /tickets/:id/encuesta
+// POST /tickets/encuesta (público)
 const responderEncuesta = async (req, res) => {
   try {
     const { token, calificacion, comentario } = req.body;
@@ -340,16 +383,24 @@ const responderEncuesta = async (req, res) => {
 
     const result = await query(`
       UPDATE encuestas_satisfaccion
-      SET calificacion = $1, comentario = $2, respondida = TRUE, respondida_en = NOW()
-      WHERE token = $3 AND respondida = FALSE
+      SET calificacion=$1, comentario=$2, respondida=TRUE, respondida_en=NOW()
+      WHERE token=$3 AND respondida=FALSE
       RETURNING *
     `, [calificacion, comentario, token]);
 
     if (result.rows.length === 0) return res.status(400).json({ error: 'Encuesta no válida o ya respondida' });
-    res.json({ mensaje: 'Gracias por tu calificación' });
+
+    // Actualizar SLA cumplimiento
+    await query('UPDATE tickets SET sla_resolucion_ok = TRUE WHERE id = $1 AND sla_resolucion_ok IS NULL', [result.rows[0].ticket_id]);
+
+    res.json({ mensaje: '¡Gracias por tu calificación!' });
   } catch (err) {
     res.status(500).json({ error: 'Error al guardar encuesta' });
   }
 };
 
-module.exports = { listarTickets, obtenerTicket, crearTicket, actualizarTicket, agregarComentario, dashboardStats, responderEncuesta };
+module.exports = {
+  listarTickets, obtenerTicket, crearTicket,
+  actualizarTicket, agregarComentario,
+  dashboardStats, responderEncuesta
+};

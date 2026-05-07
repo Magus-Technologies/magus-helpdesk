@@ -1,13 +1,12 @@
 {
   "name": "magus-helpdesk-backend",
   "version": "1.0.0",
-  "description": "Magus Help Desk - API REST Backend",
+  "description": "Magus Help Desk — API REST Backend",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "migrate": "node src/config/migrate.js",
-    "seed": "node src/config/seed.js"
+    "install:whatsapp": "npm install whatsapp-web.js qrcode-terminal"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -27,6 +26,10 @@
     "socket.io": "^4.6.1",
     "uuid": "^9.0.0",
     "winston": "^3.11.0"
+  },
+  "optionalDependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.23.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
