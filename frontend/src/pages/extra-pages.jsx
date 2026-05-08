@@ -1214,6 +1214,9 @@ export function ConfigPage() {
         </form>
       </div>
 
+      {/* Panel WhatsApp */}
+      <WhatsAppPanel />
+
       {/* Modal categoría */}
       {catModal&&(
         <Modal title={catEditando?'Editar categoría':'Nueva categoría'} onClose={()=>setCatModal(false)}>
@@ -1234,6 +1237,161 @@ export function ConfigPage() {
         </Modal>
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// WHATSAPP PANEL (componente interno de Config)
+// ─────────────────────────────────────────
+function WhatsAppPanel() {
+  const [waData, setWaData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [qrModal, setQrModal] = useState(false);
+  const intervaloRef = useRef(null);
+
+  const cargar = async () => {
+    try {
+      const r = await api.get('/whatsapp/qr');
+      setWaData(r.data);
+      // Si está listo, dejar de polling
+      if (r.data.listo && intervaloRef.current) {
+        clearInterval(intervaloRef.current);
+        intervaloRef.current = null;
+      }
+    } catch { setWaData({estado:'error',listo:false,qr:null}); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    cargar();
+    return () => { if (intervaloRef.current) clearInterval(intervaloRef.current); };
+  }, []);
+
+  const iniciarPolling = () => {
+    if (intervaloRef.current) return;
+    intervaloRef.current = setInterval(cargar, 5000);
+  };
+
+  const abrirQr = () => { setQrModal(true); iniciarPolling(); cargar(); };
+
+  const estadoColor = { listo:'var(--green)', conectando:'var(--amber)', qr_pendiente:'var(--amber)', desconectado:'var(--muted)', error:'var(--red)' };
+  const estadoLabel = { listo:'✅ Conectado y activo', conectando:'⏳ Conectando...', qr_pendiente:'📱 Escanear QR', desconectado:'⭕ Desconectado', error:'❌ Error de conexión' };
+
+  return (
+    <>
+      <div className="card" style={{marginBottom:16}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:14}}>💬 WhatsApp Web</div>
+          {!loading&&waData&&(
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:estadoColor[waData.estado]||'var(--muted)',boxShadow:`0 0 6px ${estadoColor[waData.estado]||'var(--muted)'}`}}/>
+              <span style={{fontSize:12,color:estadoColor[waData.estado]||'var(--muted)',fontWeight:600}}>
+                {estadoLabel[waData.estado]||waData.estado}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <p style={{color:'var(--muted)',fontSize:13,lineHeight:1.7,marginBottom:12}}>
+          Conecta un número de WhatsApp para enviar notificaciones automáticas a clientes cuando se asigna un técnico o cambia el estado del ticket.
+        </p>
+
+        {/* Qué notificaciones envía */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+          {[
+            {e:'📋',t:'Ticket creado',d:'Al cliente + admins'},
+            {e:'👤',t:'Técnico asignado',d:'Al cliente y empresa'},
+            {e:'🔔',t:'Cambio de estado',d:'Al cliente en cada cambio'},
+            {e:'💬',t:'Nueva respuesta',d:'Al cliente cuando el técnico responde'},
+            {e:'✅',t:'Ticket resuelto',d:'Con link a encuesta de satisfacción'},
+            {e:'🔒',t:'Ticket cerrado',d:'Notificación final al cliente'},
+          ].map(({e,t,d})=>(
+            <div key={t} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',background:'var(--surface)',borderRadius:7,border:'1px solid var(--border)'}}>
+              <span style={{fontSize:16,flexShrink:0}}>{e}</span>
+              <div>
+                <div style={{fontSize:12,fontWeight:600}}>{t}</div>
+                <div style={{fontSize:11,color:'var(--muted)'}}>{d}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Estado y acciones */}
+        {loading ? (
+          <div style={{display:'flex',gap:8,alignItems:'center',color:'var(--muted)',fontSize:13}}><div className="spinner" style={{width:16,height:16}}/> Verificando estado...</div>
+        ) : waData?.listo ? (
+          <div style={{display:'flex',gap:8,alignItems:'center',padding:'10px 14px',background:'rgba(34,201,122,.1)',borderRadius:8,border:'1px solid rgba(34,201,122,.2)'}}>
+            <span style={{fontSize:20}}>✅</span>
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:'var(--green)'}}>WhatsApp conectado</div>
+              <div style={{fontSize:12,color:'var(--muted)'}}>Las notificaciones se envían automáticamente</div>
+            </div>
+          </div>
+        ) : waData?.estado==='qr_pendiente'||waData?.qr ? (
+          <div>
+            <div style={{padding:'10px 14px',background:'rgba(245,166,35,.1)',borderRadius:8,border:'1px solid rgba(245,166,35,.2)',marginBottom:10}}>
+              <div style={{fontSize:13,fontWeight:600,color:'var(--amber)',marginBottom:4}}>📱 Escanear código QR</div>
+              <div style={{fontSize:12,color:'var(--muted)'}}>Abre WhatsApp en tu teléfono → Dispositivos vinculados → Vincular dispositivo</div>
+            </div>
+            <button className="btn btn-primary" onClick={abrirQr}>📱 Ver código QR para vincular</button>
+          </div>
+        ) : waData?.estado==='desconectado'||waData?.estado==='error' ? (
+          <div>
+            <div style={{padding:'10px 14px',background:'rgba(122,133,163,.08)',borderRadius:8,border:'1px solid var(--border)',marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:600,color:'var(--muted)',marginBottom:4}}>WhatsApp no configurado</div>
+              <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.6}}>
+                Para activar, en el servidor ejecuta:<br/>
+                <code style={{background:'var(--surface)',padding:'2px 6px',borderRadius:3,fontSize:11,color:'var(--accent)'}}>npm install whatsapp-web.js qrcode-terminal</code><br/>
+                Luego en <code style={{background:'var(--surface)',padding:'2px 6px',borderRadius:3,fontSize:11,color:'var(--accent)'}}>.env</code>: <code style={{background:'var(--surface)',padding:'2px 6px',borderRadius:3,fontSize:11,color:'var(--accent)'}}>WHATSAPP_ENABLED=true</code><br/>
+                y reiniciar: <code style={{background:'var(--surface)',padding:'2px 6px',borderRadius:3,fontSize:11,color:'var(--accent)'}}>pm2 restart magus-helpdesk</code>
+              </div>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={()=>{cargar();iniciarPolling();}}>🔄 Verificar estado</button>
+          </div>
+        ) : (
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-ghost btn-sm" onClick={abrirQr}>📱 Ver QR</button>
+            <button className="btn btn-ghost btn-sm" onClick={()=>{cargar();iniciarPolling();}}>🔄 Actualizar</button>
+          </div>
+        )}
+      </div>
+
+      {/* Modal QR */}
+      {qrModal && (
+        <Modal title="📱 Vincular WhatsApp" onClose={()=>{setQrModal(false);if(intervaloRef.current){clearInterval(intervaloRef.current);intervaloRef.current=null;}}}>
+          {waData?.listo ? (
+            <div style={{textAlign:'center',padding:20}}>
+              <div style={{fontSize:48,marginBottom:12}}>✅</div>
+              <div style={{fontWeight:700,fontSize:16,color:'var(--green)',marginBottom:8}}>¡WhatsApp conectado!</div>
+              <div style={{color:'var(--muted)',fontSize:13}}>El número está vinculado y listo para enviar notificaciones.</div>
+              <button className="btn btn-primary" style={{marginTop:16}} onClick={()=>setQrModal(false)}>Cerrar</button>
+            </div>
+          ) : waData?.qr ? (
+            <div style={{textAlign:'center'}}>
+              <p style={{color:'var(--muted)',fontSize:13,marginBottom:16,lineHeight:1.6}}>
+                Abre WhatsApp en tu teléfono → <strong>⋮ Menú</strong> → <strong>Dispositivos vinculados</strong> → <strong>Vincular dispositivo</strong> → Escanea este código:
+              </p>
+              {/* Renderizar QR usando una API de imagen */}
+              <div style={{background:'#fff',padding:16,borderRadius:12,display:'inline-block',marginBottom:16}}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(waData.qr)}`}
+                  alt="QR WhatsApp"
+                  style={{width:250,height:250,display:'block'}}
+                />
+              </div>
+              <div style={{color:'var(--amber)',fontSize:12,marginBottom:4}}>⏳ El QR expira en 60 segundos — se actualiza automáticamente</div>
+              <div style={{color:'var(--muted)',fontSize:11}}>Actualizando cada 5 segundos...</div>
+            </div>
+          ) : (
+            <div style={{textAlign:'center',padding:24}}>
+              <div className="spinner" style={{margin:'0 auto 12px'}}/>
+              <div style={{color:'var(--muted)',fontSize:13}}>Esperando código QR del servidor...</div>
+              <div style={{color:'var(--muted)',fontSize:11,marginTop:6}}>Asegúrate de que WHATSAPP_ENABLED=true en el .env y el servidor esté corriendo</div>
+            </div>
+          )}
+        </Modal>
+      )}
+    </>
   );
 }
 
