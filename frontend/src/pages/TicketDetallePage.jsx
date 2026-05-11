@@ -211,7 +211,7 @@ export default function TicketDetallePage() {
                   const icono = a.mime_type?.includes('pdf')?'📄':a.mime_type?.includes('image')?'🖼':a.mime_type?.includes('word')||a.nombre_original?.includes('.doc')?'📝':'📎';
                   const kb = a.tamano_bytes ? `${Math.round(a.tamano_bytes/1024)}KB` : '';
                   return (
-                    <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={{
+                    <a key={a.id} href={`/helpdesk${a.url}`} target="_blank" rel="noreferrer" style={{
                       display:'flex',alignItems:'center',gap:6,padding:'6px 10px',
                       background:'var(--surface)',border:'1px solid var(--border)',borderRadius:6,
                       fontSize:12,color:'var(--text)',textDecoration:'none',transition:'border-color .15s'

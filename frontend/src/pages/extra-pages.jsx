@@ -973,7 +973,7 @@ export function KBPage() {
               {editando?.metadatos?.adjuntos?.length>0&&(
                 <div style={{marginTop:6,fontSize:11,color:'var(--muted)'}}>
                   Adjuntos existentes: {editando.metadatos.adjuntos.map(a=>(
-                    <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={{color:'var(--accent)',marginRight:8}}>{a.nombre}</a>
+                    <a key={a.id} href={`/helpdesk${a.url}`} target="_blank" rel="noreferrer" style={{color:'var(--accent)',marginRight:8}}>{a.nombre}</a>
                   ))}
                 </div>
               )}
@@ -1003,7 +1003,7 @@ export function KBPage() {
               <div style={{fontSize:12,fontWeight:600,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.5,marginBottom:8}}>📎 Documentos adjuntos</div>
               <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
                 {viendoArt.metadatos.adjuntos.map(a=>(
-                  <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+                  <a key={a.id} href={`/helpdesk${a.url}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
                     📄 {a.nombre}
                   </a>
                 ))}
