@@ -143,7 +143,7 @@ const notificarTicketCreado = async (ticket) => {
     const tRes = await query(`
       SELECT t.*,
         CONCAT('TK-',LPAD(t.numero::TEXT,4,'0')) AS codigo,
-        uc.nombre AS cliente_nombre, uc.email AS cliente_email, uc.telefone AS cliente_tel,
+        uc.nombre AS cliente_nombre, uc.email AS cliente_email, uc.telefono AS cliente_tel,
         ua.nombre||' '||ua.apellido AS agente_nombre, ua.email AS agente_email,
         c.nombre AS categoria_nombre, e.nombre AS empresa_nombre
       FROM tickets t
