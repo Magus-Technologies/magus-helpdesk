@@ -1,0 +1,2 @@
+2026/05/07-20:51:04.686 75946 Creating DB /usr/share/nginx/html/magus-helpdesk/backend/wwebjs_auth/session/Default/Sync Data/LevelDB since it was missing.
+2026/05/07-20:51:04.836 75946 Reusing MANIFEST /usr/share/nginx/html/magus-helpdesk/backend/wwebjs_auth/session/Default/Sync Data/LevelDB/MANIFEST-000001

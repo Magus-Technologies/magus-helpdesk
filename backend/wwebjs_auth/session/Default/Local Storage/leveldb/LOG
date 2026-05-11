@@ -1,0 +1,10 @@
+2026/05/07-20:51:04.682 7593f Creating DB /usr/share/nginx/html/magus-helpdesk/backend/wwebjs_auth/session/Default/Local Storage/leveldb since it was missing.
+2026/05/07-20:51:04.832 7593f Reusing MANIFEST /usr/share/nginx/html/magus-helpdesk/backend/wwebjs_auth/session/Default/Local Storage/leveldb/MANIFEST-000001
+2026/05/10-01:13:56.920 7593f Level-0 table #5: started
+2026/05/10-01:13:56.935 7593f Level-0 table #5: 10394 bytes OK
+2026/05/10-23:55:10.429 7593e Level-0 table #7: started
+2026/05/10-23:55:10.435 7593e Level-0 table #7: 8295 bytes OK
+2026/05/10-23:55:10.438 7593e Delete type=0 #4
+2026/05/11-07:10:13.896 7593f Level-0 table #9: started
+2026/05/11-07:10:13.906 7593f Level-0 table #9: 7334 bytes OK
+2026/05/11-07:10:13.909 7593f Delete type=0 #6
