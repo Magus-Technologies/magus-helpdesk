@@ -18,7 +18,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('usuario');
-      window.location.href = '/helpdesk/login';
+      window.location.hash = '#/login';
     }
     return Promise.reject(err);
   }
