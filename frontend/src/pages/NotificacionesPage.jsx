@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { fmtRelativo } from '../../../responsive-update/responsive/src/utils/timeUtils';
+import { fmtRelativo } from '../utils/timeUtils';
 
 // Página de notificaciones para móvil
 export default function NotificacionesPage() {
