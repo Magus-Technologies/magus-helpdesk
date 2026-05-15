@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './hooks/useAuthStore';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -21,7 +21,7 @@ const PrivateRoute = ({ children, roles }) => {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/encuesta/:token" element={<EncuestaPage />} />
@@ -40,6 +40,6 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

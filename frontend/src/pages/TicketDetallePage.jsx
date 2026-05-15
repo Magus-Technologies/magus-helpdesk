@@ -354,7 +354,7 @@ export default function TicketDetallePage() {
               <div style={{ fontSize:12, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>📎 Adjuntos</div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
                 {ticket.adjuntos.map(a => (
-                  <a key={a.id} href={a.url} target="_blank" rel="noreferrer" style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:6, fontSize:12, color:'var(--text)', textDecoration:'none' }}>
+                  <a key={a.id} href={`/helpdesk${a.url}`} target="_blank" rel="noreferrer" style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:6, fontSize:12, color:'var(--text)', textDecoration:'none' }}>
                     📎 <span style={{ maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.nombre_original}</span>
                   </a>
                 ))}
