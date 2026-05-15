@@ -1,11 +1,15 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './hooks/useAuthStore';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketsPage from './pages/TicketsPage';
 import TicketDetallePage from './pages/TicketDetallePage';
-import { NuevoTicketPage, AgentesPage, ClientesPage, SLAPage, ReportesPage, KBPage, ConfigPage, EncuestaPage } from './pages/extra-pages.jsx';
+import NotificacionesPage from './pages/NotificacionesPage';
+import {
+  NuevoTicketPage, AgentesPage, ClientesPage, SLAPage,
+  ReportesPage, KBPage, ConfigPage, EncuestaPage
+} from './pages/extra-pages.jsx';
 import './styles/global.css';
 
 const PrivateRoute = ({ children, roles }) => {
@@ -17,7 +21,7 @@ const PrivateRoute = ({ children, roles }) => {
 
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/encuesta/:token" element={<EncuestaPage />} />
@@ -26,6 +30,7 @@ export default function App() {
           <Route path="tickets" element={<TicketsPage />} />
           <Route path="tickets/nuevo" element={<NuevoTicketPage />} />
           <Route path="tickets/:id" element={<TicketDetallePage />} />
+          <Route path="notificaciones" element={<NotificacionesPage />} />
           <Route path="agentes" element={<PrivateRoute roles={['admin','supervisor']}><AgentesPage /></PrivateRoute>} />
           <Route path="clientes" element={<PrivateRoute roles={['admin','supervisor','agente']}><ClientesPage /></PrivateRoute>} />
           <Route path="sla" element={<PrivateRoute roles={['admin','supervisor']}><SLAPage /></PrivateRoute>} />
@@ -35,6 +40,6 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
