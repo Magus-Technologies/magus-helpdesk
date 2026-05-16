@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import useAuthStore from '../hooks/useAuthStore';
+import { verificarHorario, formatearHorarioLegible } from '../utils/horarioUtils';
 
 // ─────────────────────────────────────────
 // MODAL GENÉRICO
